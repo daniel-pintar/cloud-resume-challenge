@@ -1,0 +1,31 @@
+{
+  "name": "cesar-aws-eventcode",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "npm run test && serverless-build --aws-sharedLayer",
+    "deploy": "terraform validate && terraform apply",
+    "buildAndDeploy": "npm run build && npm run deploy",
+    "test": "jest"
+  },
+  "keywords": [
+    "DI-ON.solutions",
+    "AWS",
+    "Lambda",
+    "EventCode",
+    "Serverless",
+    "Function-as-a-Service",
+    "FaaS"
+  ],
+  "author": "DI-ON.solutions",
+  "license": "ISC",
+  "dependencies": {
+    "@di-on-solutions/lamdion": "^3.0.2"
+  },
+  "devDependencies": {
+    "@types/jest": "^26.0.21",
+    "jest": "^26.6.3",
+    "ts-jest": "^26.4.4"
+  }
+}

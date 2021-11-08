@@ -1,0 +1,22 @@
+{
+  "name": "cesar-aws",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "install": "./.circleci/runCommandOnEveryFunction.sh npm install",
+    "build": "./.circleci/runCommandOnEveryFunction.sh npm run build",
+    "deploy": "terraform validate && terraform apply",
+    "test": "./.circleci/runCommandOnEveryFunction.sh npm run test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DI-ON-solutions/CESAR-AWS.git"
+  },
+  "author": "DI-ON.solutions",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/DI-ON-solutions/CESAR-AWS/issues"
+  },
+  "homepage": "https://github.com/DI-ON-solutions/CESAR-AWS#readme"
+}

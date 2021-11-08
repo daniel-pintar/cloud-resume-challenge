@@ -1,0 +1,149 @@
+version: 2.1
+orbs:
+  node: circleci/node@3.0.0
+  terraform: circleci/terraform@1.2.0
+  npm-config: cobli/npm-config@1.0.0
+
+executors:
+  node-executor:
+    docker:
+      - image: circleci/node:14.10.1
+
+jobs:
+  build:
+    executor: node-executor
+    working_directory: ~/repo
+    steps:
+      - checkout:
+          path: ~/repo
+
+      - npm-config/set-registry:
+          registry-prurl: //npm.pkg.github.com/
+          scope: '@di-on-solutions'
+          auth-token: ${NPM_TOKEN}
+
+      - run: ./.circleci/runCommandOnEveryFunction.sh npm install
+      - run: ./.circleci/runCommandOnEveryFunction.sh npm run build
+
+      - run: ./.circleci/runCommandOnEveryFunction.sh rm -rf node_modules
+
+      - persist_to_workspace:
+          root: .
+          paths:
+            - .
+
+  deploy:
+    docker:
+      - image: cimg/base:2021.02
+    steps:
+      - attach_workspace:
+          at: .
+
+      - run:
+          name: Check if terraform credentials are available
+          command: |
+            if [ -n "${TERRAFORM_TOKEN}" ];
+            then
+              echo "Terraform credentials are available."
+            else
+              echo "Terraform credentials isn't available. Please set env variable \"TERRAFORM_TOKEN\""
+              exit 1
+            fi
+
+      - run:
+          name: Check if terraform workspace prefix is available
+          command: |
+            if [ -n "${TERRAFORM_WORKSPACE_PREFIX}" ];
+            then
+              echo "Terraform workspace prefix is available."
+            else
+              echo "Terraform workspace prefix isn't available. Please set env variable \"TERRAFORM_WORKSPACE_PREFIX\""
+              exit 1
+            fi
+
+      - run:
+          name: Install NPM & Node.JS
+          command: |
+            curl -fsSL https://deb.nodesource.com/setup_15.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+
+      - run:
+          name: Install python2
+          command: |
+            sudo add-apt-repository ppa:deadsnakes/ppa
+            sudo apt-get update
+            sudo apt-get install python2.7
+
+      - run: npm config set python /usr/bin/python2.7
+
+      - run:
+          name: Apply terraform credentials
+          command: |
+            mkdir /home/circleci/.terraform.d/
+            echo "{\"credentials\":{\"app.terraform.io\":{\"token\":\"$TERRAFORM_TOKEN\"}}}" >> /home/circleci/.terraform.d/credentials.tfrc.json
+
+      - run:
+          name: Create backend.tf file
+          command: |
+            cat > backend.tf \<<EOL
+            terraform {
+              backend "remote" {
+                organization = "DI-ON-solutions"
+
+                workspaces {
+                  name = "${TERRAFORM_WORKSPACE_PREFIX}-${CIRCLE_BRANCH}"
+                }
+              }
+            }
+            EOL
+
+      - run:
+          name: Install HashiCorp Terraform
+          command: |
+            curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
+            sudo apt-add-repository "deb [arch=$(dpkg --print-architecture)] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+            sudo apt install terraform
+
+      - run:
+          name: terraform init
+          command: |
+            terraform init
+
+      - run: terraform plan -var-file=.circleci/${CIRCLE_BRANCH}/terraform.tfvars
+
+      - run:
+          name: Apply infastructure on AWS
+          command: terraform apply -auto-approve -var-file=.circleci/${CIRCLE_BRANCH}/terraform.tfvars
+
+      - run:
+          name: Get client npm install output
+          command: ./.circleci/everyClientDisplayInstall.sh
+
+      - run:
+          name: Get client npm run build output
+          command: ./.circleci/everyClientDisplayBuild.sh
+
+      - run:
+          name: Apply react applications with the infastructure details
+          command: terraform apply -auto-approve -var-file=.circleci/${CIRCLE_BRANCH}/terraform.tfvars
+
+      - run:
+          name: Get client npm install output
+          command: ./.circleci/everyClientDisplayInstall.sh
+
+      - run:
+          name: Get client npm run build output
+          command: ./.circleci/everyClientDisplayBuild.sh
+
+workflows:
+  version: 2
+  build:
+    jobs:
+      - build:
+          filters:
+            branches:
+              only:
+                - master
+      - deploy:
+          requires:
+            - build
